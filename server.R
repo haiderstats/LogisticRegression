@@ -18,7 +18,6 @@ shinyServer(function(input, output) {
   output$independent <- renderUI({
     remove = input$dependent
     indeps = setdiff(names(values$dataset),remove)
-    
     validate(need(!is.null(indeps), ""))
     
     checkboxGroupInput("independent", "Choose your independent variables.", indeps)
