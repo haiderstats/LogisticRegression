@@ -13,9 +13,19 @@ shinyUI(fluidPage(
            fileInput("file", "Upload file"),
            
            uiOutput("dependent"),
-           uiOutput("independent")
+           uiOutput("independentFactor"),
+           uiOutput("independentContinuous"),
+           conditionalPanel(
+             condition  = "input.independentFactor != null && input.independentFactor.length > 1",
+           textInput("interactions","Please enter interactions you would like to observe in X*Y format.", value = ""),
+           actionButton("addInteraction", label = "Enter"))
            
            
-    )
+           
+    ),
+    column(9,
+           h1("Your Current Model"),
+           hr(),
+           h3(textOutput("model")))
   )
 ))
