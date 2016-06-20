@@ -67,13 +67,11 @@ shinyServer(function(input, output,session) {
     
     if(!is.null(interactions)){
       if(length(interactions) <2){
-        print(length(interactions))
         theModel = paste(modelVars, interactions, sep = " + ")
       }
       else{
         interactions = paste(interactions, collapse = " + " )
         theModel = paste(modelVars, interactions, sep = " + ")
-        print(theModel)
       }
       finalMod = paste(dep, theModel)
     }
