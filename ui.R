@@ -15,12 +15,8 @@ shinyUI(fluidPage(
            uiOutput("dependent"),
            uiOutput("independentFactor"),
            uiOutput("independentContinuous"),
-           conditionalPanel(
-             condition  = "input.independentFactor != null && input.independentFactor.length > 1",
-           textInput("interactions","Please enter interactions you would like to observe in X*Y format.", value = ""),
-           actionButton("addInteraction", label = "Enter"))
-           
-           
+           uiOutput("interactions")
+          
            
     ),
     column(9,
