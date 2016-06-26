@@ -1,11 +1,14 @@
 #server.R
-
+library(ReporteRs)
 shinyServer(function(input, output,session) {
   
   values <- reactiveValues(dataset = NULL)
 
-  observeEvent(input$file, {
+  data = eventReactive(input$file, {
     values$dataset <- read.csv(input$file$datapath)
+    deps = names(which(apply(values$dataset, 2, function(x) length(unique(x))) < 3))
+    names(values$dataset)[-which(deps == names(values$dataset))]
+    
   })
   
   output$dependent <- renderUI({
@@ -16,23 +19,57 @@ shinyServer(function(input, output,session) {
     radioButtons("dependent", "Choose your dependent variable.", deps)
   })
   
-  output$independentFactor <- renderUI({
-    remove = c(input$dependent)
-    indepsFactor = setdiff(names(values$dataset),remove)
-    validate(need(!is.null(indepsFactor), ""))
+  observeEvent(data(),{
+    output$independentFactor <- renderUI({
+      checkboxGroupInput("independentFactor", "Choose your independent factor variables.", data())
+    })
     
-    checkboxGroupInput("independentFactor", "Choose your independent factor variables.", indepsFactor)
-    
+    output$independentContinuous <- renderUI({
+      checkboxGroupInput("independentContinuous", "Choose your independent continuous variables.", data())
+    })
   })
   
+  contVars = eventReactive(input$independentFactor,{
+    validate(need(input$file, ""))
+    if(setequal(names(values$dataset), c(input$dependent, input$independentFactor))){
+      return("")
+    }
+    else{
+      return(setdiff(names(values$dataset), c(input$dependent, input$independentFactor)))
+    }
+  }, ignoreNULL = FALSE)
   
-  output$independentContinuous <- renderUI({
-    remove = c(input$dependent, input$independentFactor)
-    indepsCont = setdiff(names(values$dataset),remove)
-    validate(need(!is.null(indepsCont), ""))
+  factorVars = eventReactive(input$independentContinuous,{
+    validate(need(input$file, ""))
+    if(setequal(names(values$dataset), c(input$dependent, input$independentContinuous))){
+      return("")
+    }
+    else{
+      return(setdiff(names(values$dataset), c(input$dependent, input$independentContinuous)))
+    }
     
-    checkboxGroupInput("independentContinuous", label = "Choose your independent continuous variables.", indepsCont)
-    
+  }, ignoreNULL = FALSE)
+  
+  observeEvent(contVars(),{
+    if(contVars()[1] == ""){
+      output$independentContinuous = renderUI({
+        checkboxGroupInput("independentContinuous","", choices = NULL)
+      })
+    }
+    else{
+      updateCheckboxGroupInput(session, "independentContinuous", "Choose your independent continuous variables.", contVars(), selected = input$independentContinuous)
+    }
+  })
+  
+  observeEvent(factorVars(),{
+   if(factorVars()[1] == ""){
+     output$independentFactor = renderUI({
+       checkboxGroupInput("independentFactor","", choices = NULL)
+     })
+   }
+    else{
+      updateCheckboxGroupInput(session, "independentFactor", "Choose your independent factor variables.", factorVars(), selected = input$independentFactor)
+    }
   })
   
   output$interactions <- renderUI({
@@ -62,9 +99,7 @@ shinyServer(function(input, output,session) {
     indeps = c(input$independentFactor, input$independentContinuous)
     modelVars = paste(indeps, collapse = " + ")
     interactions = input$interactions
-    
-    print(input$interactions)
-    
+
     if(!is.null(interactions)){
       if(length(interactions) <2){
         theModel = paste(modelVars, interactions, sep = " + ")
@@ -79,13 +114,54 @@ shinyServer(function(input, output,session) {
       finalMod = paste(dep, modelVars)
     }
     
-
-    
+    model <<- finalMod
     finalMod
 
   })
   
+  buildModel = eventReactive(input$go,{
+    for(i in 1:length(input$independentFactor)){
+      index = which(input$independentFactor[i] == names(values$dataset))
+      values$dataset[,index] = factor(values$dataset[,index])
+    }
+    for(i in 1:length(input$independentContinuous)){
+      index = which(input$independentContinuous[i] == names(values$dataset))
+      values$dataset[,index] = as.numeric(as.character(values$dataset[,index]))
+    }
+    print(values$dataset)
+    theModel =glm(model, family = binomial, data = values$dataset)
+    modelSummary = summary(theModel)
+    summaryTable = vanilla.table(round(modelSummary$coefficients, digits = 3), add.rownames = T)
+    
+    return(HTML(as.html(summaryTable)))
+    
+  })
   
+  buildModelExtras = eventReactive(input$go,{
+    for(i in 1:length(input$independentFactor)){
+      index = which(input$independentFactor[i] == names(values$dataset))
+      values$dataset[,index] = factor(values$dataset[,index])
+    }
+    for(i in 1:length(input$independentContinuous)){
+      index = which(input$independentContinuous[i] == names(values$dataset))
+      values$dataset[,index] = as.numeric(as.character(values$dataset[,index]))
+    }
+    theModel =glm(model, family = binomial, data = values$dataset)
+    modelSummary = summary(theModel)
+    modelExtras= data.frame(modelSummary$aic, modelSummary$df.residual, modelSummary$deviance)
+    colnames(modelExtras) = c("AIC","DF", "Deviance")
+    tableExtras = vanilla.table(modelExtras)
+    return(HTML(as.html(tableExtras)))
+    
+  })
+  
+  output$modelResults = renderUI({
+    buildModel()
+  })
+  
+  output$modelExtras = renderUI({
+    buildModelExtras()
+  })
   
   
 })

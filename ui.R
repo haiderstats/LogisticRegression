@@ -15,13 +15,22 @@ shinyUI(fluidPage(
            uiOutput("dependent"),
            uiOutput("independentFactor"),
            uiOutput("independentContinuous"),
-           uiOutput("interactions")
-          
+           
+           # checkboxGroupInput("independentFactor", "Choose your independent factor variables.", "" ),
+          # checkboxGroupInput("independentContinuous", label = "Choose your independent continuous variables.", "" ),
+           uiOutput("interactions"),
+           actionButton("go", "Build The Model")
+           
            
     ),
     column(9,
            h1("Your Current Model"),
            hr(),
-           h3(textOutput("model")))
+           h3(textOutput("model")),
+           hr(),
+           br(),
+           uiOutput("modelResults"),
+           uiOutput("modelExtras")
+           
   )
-))
+)))

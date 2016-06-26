@@ -1,0 +1,3 @@
+#global.R
+
+model = NULL
