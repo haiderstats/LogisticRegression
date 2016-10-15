@@ -4,6 +4,7 @@ shinyServer(function(input, output,session) {
   
   values <- reactiveValues(dataset = NULL)
 
+  #Read in the data and determine which ones are binary and offer those as potential variables to be analyzed.
   data = eventReactive(input$file, {
     values$dataset <- read.csv(input$file$datapath)
     deps = names(which(apply(values$dataset, 2, function(x) length(unique(x))) < 3))
@@ -11,6 +12,7 @@ shinyServer(function(input, output,session) {
     
   })
   
+  #Create the UI for the dependent variable portion. Supply error message if no data is present.
   output$dependent <- renderUI({
     deps = names(values$dataset)
     validate(need(!is.null(deps), "Please upload a file to see more options."))
@@ -19,6 +21,7 @@ shinyServer(function(input, output,session) {
     radioButtons("dependent", "Choose your dependent variable.", deps)
   })
   
+  #When data gets loaded in list the factor vairables and the indepedent variables.
   observeEvent(data(),{
     output$independentFactor <- renderUI({
       checkboxGroupInput("independentFactor", "Choose your independent factor variables.", data())
@@ -29,6 +32,9 @@ shinyServer(function(input, output,session) {
     })
   })
   
+  #The following two function lay out which variables have been selected in which category.
+  #If all of the variables are in one category we remove the option and return the empty string (which effectively)
+  #removes it from the UI.
   contVars = eventReactive(input$independentFactor,{
     validate(need(input$file, ""))
     if(setequal(names(values$dataset), c(input$dependent, input$independentFactor))){
@@ -50,6 +56,8 @@ shinyServer(function(input, output,session) {
     
   }, ignoreNULL = FALSE)
   
+  #If all variables are in one category we need to remove the other category (factor or cont.) from the UI
+  #However, if a variable is unselected the UI needs to refresh. The next two functions handle this for us.
   observeEvent(contVars(),{
     if(contVars()[1] == ""){
       output$independentContinuous = renderUI({
@@ -72,6 +80,8 @@ shinyServer(function(input, output,session) {
     }
   })
   
+  #We need to allow to have the abillity to have interactions in our model. To do this we need to loop
+  #over all the variables and paste in a * sign since glm uses * for interaction.
   output$interactions <- renderUI({
     modelVars = c(input$independentContinuous, input$independentFactor)
     validate(need(!is.null(modelVars) ,""))
@@ -92,6 +102,7 @@ shinyServer(function(input, output,session) {
     }
   })
   
+  #This function will render our model as we add variables. This way the user can see the model as they build it.
   output$model <- renderText({
     validate(need(!is.null(input$dependent), ""))
     
@@ -119,15 +130,21 @@ shinyServer(function(input, output,session) {
 
   })
   
+  #This will build our model so we can get some analytical results.
   buildModel = eventReactive(input$go,{
+    
+    #Runs through thefactor variables for the data set
     for(i in 1:length(input$independentFactor)){
       index = which(input$independentFactor[i] == names(values$dataset))
       values$dataset[,index] = factor(values$dataset[,index])
     }
+    
+    #Grabs the continuous variables 
     for(i in 1:length(input$independentContinuous)){
       index = which(input$independentContinuous[i] == names(values$dataset))
       values$dataset[,index] = as.numeric(as.character(values$dataset[,index]))
     }
+    
     print(values$dataset)
     theModel =glm(model, family = binomial, data = values$dataset)
     modelSummary = summary(theModel)
@@ -137,6 +154,8 @@ shinyServer(function(input, output,session) {
     
   })
   
+  
+  #This is where we are gonna do a lot of the extra stuff. This will give us our AIC and residuals as of now.
   buildModelExtras = eventReactive(input$go,{
     for(i in 1:length(input$independentFactor)){
       index = which(input$independentFactor[i] == names(values$dataset))
