@@ -2,11 +2,11 @@
 library(ReporteRs)
 shinyServer(function(input, output,session) {
   
-  values <- reactiveValues(dataset = NULL)
-
+  values <- reactiveValues(dataset = NULL, factors = NULL)
+  
   #Read in the data and determine which ones are binary and offer those as potential variables to be analyzed.
   data = eventReactive(input$file, {
-    values$dataset <- read.csv(input$file$datapath)
+    values$dataset <- read.csv(input$file$datapath, stringsAsFactors = T)
     deps = names(which(apply(values$dataset, 2, function(x) length(unique(x))) < 3))
     names(values$dataset)[-which(deps == names(values$dataset))]
     
@@ -27,8 +27,21 @@ shinyServer(function(input, output,session) {
       checkboxGroupInput("independentFactor", "Choose your independent factor variables.", data())
     })
     
+    #Note that getting the continuous variables is harder since we cannot perform
+    #continuous calculations on string variables. So we will elimate all string variables
+    #by catching the factors.
     output$independentContinuous <- renderUI({
-      checkboxGroupInput("independentContinuous", "Choose your independent continuous variables.", data())
+      continuousVars = data()
+      temp = continuousVars
+      counter =1
+      for(i in 2:(length(continuousVars)+1)){
+        if(is.factor(values$dataset[[i]])){
+          values$factors[counter] = temp[i-1]
+          counter = counter+1
+          continuousVars = continuousVars[-(i-1)]
+        }
+      }
+      checkboxGroupInput("independentContinuous", "Choose your independent continuous variables.", continuousVars)
     })
   })
   
@@ -37,11 +50,11 @@ shinyServer(function(input, output,session) {
   #removes it from the UI.
   contVars = eventReactive(input$independentFactor,{
     validate(need(input$file, ""))
-    if(setequal(names(values$dataset), c(input$dependent, input$independentFactor))){
+    if(setequal(names(values$dataset), c(input$dependent, input$independentFactor,values$factors))){
       return("")
     }
     else{
-      return(setdiff(names(values$dataset), c(input$dependent, input$independentFactor)))
+      return(setdiff(names(values$dataset), c(input$dependent, input$independentFactor,values$factors)))
     }
   }, ignoreNULL = FALSE)
   
@@ -70,11 +83,11 @@ shinyServer(function(input, output,session) {
   })
   
   observeEvent(factorVars(),{
-   if(factorVars()[1] == ""){
-     output$independentFactor = renderUI({
-       checkboxGroupInput("independentFactor","", choices = NULL)
-     })
-   }
+    if(factorVars()[1] == ""){
+      output$independentFactor = renderUI({
+        checkboxGroupInput("independentFactor","", choices = NULL)
+      })
+    }
     else{
       updateCheckboxGroupInput(session, "independentFactor", "Choose your independent factor variables.", factorVars(), selected = input$independentFactor)
     }
@@ -98,7 +111,7 @@ shinyServer(function(input, output,session) {
       
     }
     else{
-    checkboxGroupInput("interactions", label = "", choices = NULL )
+      checkboxGroupInput("interactions", label = "", choices = NULL )
     }
   })
   
@@ -110,7 +123,7 @@ shinyServer(function(input, output,session) {
     indeps = c(input$independentFactor, input$independentContinuous)
     modelVars = paste(indeps, collapse = " + ")
     interactions = input$interactions
-
+    
     if(!is.null(interactions)){
       if(length(interactions) <2){
         theModel = paste(modelVars, interactions, sep = " + ")
@@ -127,25 +140,28 @@ shinyServer(function(input, output,session) {
     
     model <<- finalMod
     finalMod
-
+    
   })
   
   #This will build our model so we can get some analytical results.
   buildModel = eventReactive(input$go,{
     
     #Runs through thefactor variables for the data set
-    for(i in 1:length(input$independentFactor)){
-      index = which(input$independentFactor[i] == names(values$dataset))
-      values$dataset[,index] = factor(values$dataset[,index])
+    if(length(input$independentFactor)){
+      for(i in 1:length(input$independentFactor)){
+        index = which(input$independentFactor[i] == names(values$dataset))
+        values$dataset[,index] = factor(values$dataset[,index])
+      }
     }
     
     #Grabs the continuous variables 
-    for(i in 1:length(input$independentContinuous)){
-      index = which(input$independentContinuous[i] == names(values$dataset))
-      values$dataset[,index] = as.numeric(as.character(values$dataset[,index]))
+    if(length(input$independentContinuous)){
+      for(i in 1:length(input$independentContinuous)){
+        index = which(input$independentContinuous[i] == names(values$dataset))
+        values$dataset[,index] = as.numeric(as.character(values$dataset[,index]))
+      }
     }
     
-    print(values$dataset)
     theModel =glm(model, family = binomial, data = values$dataset)
     modelSummary = summary(theModel)
     summaryTable = vanilla.table(round(modelSummary$coefficients, digits = 3), add.rownames = T)
