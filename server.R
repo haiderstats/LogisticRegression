@@ -36,9 +36,7 @@ shinyServer(function(input, output,session) {
       counter =1
       for(i in 2:(length(continuousVars)+1)){
         if(is.factor(values$dataset[[i]])){
-          print(values$factors)
           values$factors[counter] = temp[i-1]
-          print(values$factors)
           counter = counter+1
           continuousVars = continuousVars[-(i-1)]
         }
@@ -51,7 +49,6 @@ shinyServer(function(input, output,session) {
   #If all of the variables are in one category we remove the option and return the empty string (which effectively)
   #removes it from the UI.
   contVars = eventReactive(input$independentFactor,{
-    #print(values$factors)
     validate(need(input$file, ""))
     if(setequal(names(values$dataset), c(input$dependent, input$independentFactor,values$factors))){
       return("")
@@ -154,7 +151,6 @@ shinyServer(function(input, output,session) {
   
   #This will build our model so we can get some analytical results.
   buildModel = eventReactive(input$go,{
-    print(str(values$dataset))
     localData = values$dataset
     #Runs through thefactor variables for the data set
     if(length(input$independentFactor)){
@@ -172,10 +168,9 @@ shinyServer(function(input, output,session) {
       }
     }
     
-    theModel =glm(model, family = binomial, data = values$dataset)
+    theModel =glm(model, family = binomial, data = localData)
     modelSummary = summary(theModel)
     summaryTable = vanilla.table(round(modelSummary$coefficients, digits = 3), add.rownames = T)
-    print(str(values$dataset))
     return(HTML(as.html(summaryTable)))
     
   })
@@ -197,7 +192,7 @@ shinyServer(function(input, output,session) {
         localData[,index] = as.numeric(as.character(localData[,index]))
       }
     }
-    theModel =glm(model, family = binomial, data = values$dataset)
+    theModel =glm(model, family = binomial, data = localData)
     modelSummary = summary(theModel)
     modelExtras= data.frame(modelSummary$aic, modelSummary$df.residual, modelSummary$deviance)
     colnames(modelExtras) = c("AIC","DF", "Deviance")
