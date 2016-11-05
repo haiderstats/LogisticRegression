@@ -36,7 +36,9 @@ shinyServer(function(input, output,session) {
       counter =1
       for(i in 2:(length(continuousVars)+1)){
         if(is.factor(values$dataset[[i]])){
+          print(values$factors)
           values$factors[counter] = temp[i-1]
+          print(values$factors)
           counter = counter+1
           continuousVars = continuousVars[-(i-1)]
         }
@@ -49,6 +51,7 @@ shinyServer(function(input, output,session) {
   #If all of the variables are in one category we remove the option and return the empty string (which effectively)
   #removes it from the UI.
   contVars = eventReactive(input$independentFactor,{
+    #print(values$factors)
     validate(need(input$file, ""))
     if(setequal(names(values$dataset), c(input$dependent, input$independentFactor,values$factors))){
       return("")
@@ -119,53 +122,60 @@ shinyServer(function(input, output,session) {
   output$model <- renderText({
     validate(need(!is.null(input$dependent), ""))
     
-    dep = paste(input$dependent, '~')
     indeps = c(input$independentFactor, input$independentContinuous)
-    modelVars = paste(indeps, collapse = " + ")
-    interactions = input$interactions
-    
-    if(!is.null(interactions)){
-      if(length(interactions) <2){
-        theModel = paste(modelVars, interactions, sep = " + ")
+    if(length(indeps)){
+      dep = paste(input$dependent, '~')
+      modelVars = paste(indeps, collapse = " + ")
+      interactions = input$interactions
+      
+      if(!is.null(interactions)){
+        if(length(interactions) <2){
+          theModel = paste(modelVars, interactions, sep = " + ")
+        }
+        else{
+          interactions = paste(interactions, collapse = " + " )
+          theModel = paste(modelVars, interactions, sep = " + ")
+        }
+        finalMod = paste(dep, theModel)
       }
       else{
-        interactions = paste(interactions, collapse = " + " )
-        theModel = paste(modelVars, interactions, sep = " + ")
+        finalMod = paste(dep, modelVars)
       }
-      finalMod = paste(dep, theModel)
+      
     }
     else{
-      finalMod = paste(dep, modelVars)
+      finalMod <<- paste(input$dependent, 1, sep = " ~ ")
     }
-    
     model <<- finalMod
+  
     finalMod
     
   })
   
   #This will build our model so we can get some analytical results.
   buildModel = eventReactive(input$go,{
-    
+    print(str(values$dataset))
+    localData = values$dataset
     #Runs through thefactor variables for the data set
     if(length(input$independentFactor)){
       for(i in 1:length(input$independentFactor)){
-        index = which(input$independentFactor[i] == names(values$dataset))
-        values$dataset[,index] = factor(values$dataset[,index])
+        index = which(input$independentFactor[i] == names(localData))
+        localData[,index] = factor(localData[,index])
       }
     }
     
     #Grabs the continuous variables 
     if(length(input$independentContinuous)){
       for(i in 1:length(input$independentContinuous)){
-        index = which(input$independentContinuous[i] == names(values$dataset))
-        values$dataset[,index] = as.numeric(as.character(values$dataset[,index]))
+        index = which(input$independentContinuous[i] == names(localData))
+        localData[,index] = as.numeric(as.character(localData[,index]))
       }
     }
     
     theModel =glm(model, family = binomial, data = values$dataset)
     modelSummary = summary(theModel)
     summaryTable = vanilla.table(round(modelSummary$coefficients, digits = 3), add.rownames = T)
-    
+    print(str(values$dataset))
     return(HTML(as.html(summaryTable)))
     
   })
@@ -173,13 +183,19 @@ shinyServer(function(input, output,session) {
   
   #This is where we are gonna do a lot of the extra stuff. This will give us our AIC and residuals as of now.
   buildModelExtras = eventReactive(input$go,{
-    for(i in 1:length(input$independentFactor)){
-      index = which(input$independentFactor[i] == names(values$dataset))
-      values$dataset[,index] = factor(values$dataset[,index])
+    localData = values$dataset
+    if(length(input$independentFactor)){
+      for(i in 1:length(input$independentFactor)){
+        index = which(input$independentFactor[i] == names(localData))
+        localData[,index] = factor(localData[,index])
+      }
     }
-    for(i in 1:length(input$independentContinuous)){
-      index = which(input$independentContinuous[i] == names(values$dataset))
-      values$dataset[,index] = as.numeric(as.character(values$dataset[,index]))
+    
+    if(length(input$independentContinuous)){
+      for(i in 1:length(input$independentContinuous)){
+        index = which(input$independentContinuous[i] == names(localData))
+        localData[,index] = as.numeric(as.character(localData[,index]))
+      }
     }
     theModel =glm(model, family = binomial, data = values$dataset)
     modelSummary = summary(theModel)
